@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>地価公示マップ（広島県）</title>
 
-  <!-- Leaflet -->
+  <!-- Leaflet CSS -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -32,17 +32,19 @@
 
 <div id="map"></div>
 
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  // ① 地図初期化（広島市）
+  // ① 地図初期化（広島市 中区中心）
   const map = L.map('map').setView([34.3955, 132.4555], 14);
 
-
-  // ② 背景地図（抽象度高め）
+  // ② 背景地図：鮮明・標準（王道）
   L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-    { attribution: '© OpenStreetMap © CARTO' }
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      attribution: '© OpenStreetMap contributors'
+    }
   ).addTo(map);
 
   // ③ GeoJSON 読み込み
@@ -63,13 +65,24 @@
         onEachFeature: (feature, layer) => {
           const p = feature.properties;
 
-          // ポップアップHTML
+          // ---- 年次データ ----
+          const price2025 = p.L01_104; // 最新
+          const price2024 = p.L01_103; // 前年
+
+          const diff = (price2025 && price2024)
+            ? price2025 - price2024
+            : null;
+
+          const diffRate = (price2025 && price2024)
+            ? ((diff / price2024) * 100).toFixed(1)
+            : null;
+
+          // ---- ポップアップ ----
           const popupHtml = `
             <table>
               <tr><th>地点名</th><td>${p.L01_024}</td></tr>
               <tr><th>所在地</th><td>${p.L01_025}</td></tr>
 
-              <!-- 最新年 -->
               <tr>
                 <th>地価（2025）</th>
                 <td><b>${price2025?.toLocaleString() ?? '-'}</b> 円/㎡</td>
@@ -81,10 +94,9 @@
               <tr><th>容積率</th><td>${p.L01_058}%</td></tr>
               <tr><th>最寄駅</th><td>${p.L01_048}</td></tr>
 
-              <!-- 下に地価推移を追加 -->
               <tr><th colspan="2">地価推移（前年比）</th></tr>
               <tr>
-                <th>2024→2025</th>
+                <th>2024 → 2025</th>
                 <td>
                   ${diff !== null
                     ? `${diff > 0 ? '＋' : ''}${diff.toLocaleString()} 円（${diff > 0 ? '＋' : ''}${diffRate}％）`
@@ -94,8 +106,6 @@
             </table>
           `;
 
-
-
           layer.bindPopup(popupHtml);
         }
       }).addTo(map);
@@ -103,6 +113,7 @@
     })
     .catch(err => {
       console.error('GeoJSON 読み込み失敗', err);
+      alert('GeoJSONの読み込みに失敗しました');
     });
 </script>
 
