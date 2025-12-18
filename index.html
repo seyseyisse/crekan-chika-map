@@ -69,20 +69,31 @@
               <tr><th>地点名</th><td>${p.L01_024}</td></tr>
               <tr><th>所在地</th><td>${p.L01_025}</td></tr>
 
-              <tr><th colspan="2">地価推移（円/㎡）</th></tr>
-              <tr><th>2025年</th><td>${p.L01_104?.toLocaleString() ?? '-'}</td></tr>
-              <tr><th>2024年</th><td>${p.L01_103?.toLocaleString() ?? '-'}</td></tr>
-              <tr><th>2023年</th><td>${p.L01_102?.toLocaleString() ?? '-'}</td></tr>
-              <tr><th>2022年</th><td>${p.L01_101?.toLocaleString() ?? '-'}</td></tr>
-              <tr><th>2021年</th><td>${p.L01_100?.toLocaleString() ?? '-'}</td></tr>
+              <!-- 最新年 -->
+              <tr>
+                <th>地価（2025）</th>
+                <td><b>${price2025?.toLocaleString() ?? '-'}</b> 円/㎡</td>
+              </tr>
 
               <tr><th>用途</th><td>${p.L01_028}</td></tr>
               <tr><th>用途地域</th><td>${p.L01_051}</td></tr>
               <tr><th>建ぺい率</th><td>${p.L01_057}%</td></tr>
               <tr><th>容積率</th><td>${p.L01_058}%</td></tr>
               <tr><th>最寄駅</th><td>${p.L01_048}</td></tr>
+
+              <!-- 下に地価推移を追加 -->
+              <tr><th colspan="2">地価推移（前年比）</th></tr>
+              <tr>
+                <th>2024→2025</th>
+                <td>
+                  ${diff !== null
+                    ? `${diff > 0 ? '＋' : ''}${diff.toLocaleString()} 円（${diff > 0 ? '＋' : ''}${diffRate}％）`
+                    : '-'}
+                </td>
+              </tr>
             </table>
           `;
+
 
 
           layer.bindPopup(popupHtml);
