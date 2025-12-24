@@ -4,15 +4,41 @@
   <meta charset="UTF-8">
   <title>地価公示マップ（広島県）</title>
 
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
   <style>
     body { margin: 0; }
     #map { width: 100%; height: 100vh; }
+
+    .osm-gray {
+      filter: grayscale(85%) brightness(0.95) contrast(0.9);
+    }
+
+    #zoom-indicator {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.85);
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    .price-label {
+      font-size: 11px;
+      line-height: 1.2;
+      text-align: center;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .price-label .addr { color: #555; }
+    .price-label .price { font-weight: bold; color: #222; }
+    .price-label .rate.up { color: #1a7f37; }
+    .price-label .rate.down { color: #c1121f; }
+    .price-label .rate.none { color: #999; }
 
     table {
       border-collapse: collapse;
@@ -31,90 +57,234 @@
 <body>
 
 <div id="map"></div>
+<div id="zoom-indicator"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  // ① 地図初期化（広島市 中区中心）
+  /* =========================
+     初期化
+  ========================= */
   const map = L.map('map').setView([34.3955, 132.4555], 14);
 
-  // ② 背景地図：鮮明・標準（王道）
-  L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {
-      attribution: '© OpenStreetMap contributors'
-    }
-  ).addTo(map);
+  const SWITCH_ZOOM = 13;
+  const LABEL_MIN_ZOOM = 16;
 
-  // ③ GeoJSON 読み込み
+  const labelsLayer = L.layerGroup();
+  const arrowMarkers = []; // ★ 矢印管理用
+
+  /* =========================
+     ベースマップ
+  ========================= */
+  const cartoBase = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    { subdomains: 'abcd', maxZoom: 20 }
+  );
+
+  const cartoLabels = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+    { subdomains: 'abcd', maxZoom: 20 }
+  );
+
+  const osmGray = L.tileLayer(
+    'https://tile.openstreetmap.jp/{z}/{x}/{y}.png',
+    { maxZoom: 19, className: 'osm-gray' }
+  );
+
+  let currentBase = null;
+
+  function updateBaseMap() {
+    const z = map.getZoom();
+    if (currentBase === 'carto') {
+      map.removeLayer(cartoBase);
+      map.removeLayer(cartoLabels);
+    }
+    if (currentBase === 'osm') {
+      map.removeLayer(osmGray);
+    }
+    if (z >= SWITCH_ZOOM) {
+      cartoBase.addTo(map);
+      cartoLabels.addTo(map);
+      currentBase = 'carto';
+    } else {
+      osmGray.addTo(map);
+      currentBase = 'osm';
+    }
+  }
+
+  updateBaseMap();
+  map.on('zoomend', updateBaseMap);
+
+  /* =========================
+     Zoom表示
+  ========================= */
+  const zoomIndicator = document.getElementById('zoom-indicator');
+  function updateZoomIndicator() {
+    zoomIndicator.textContent = `Zoom: ${map.getZoom()}`;
+  }
+  updateZoomIndicator();
+  map.on('zoomend', updateZoomIndicator);
+
+  /* =========================
+     ラベル表示制御
+  ========================= */
+  function updateLabelsVisibility() {
+    const z = map.getZoom();
+    if (z >= LABEL_MIN_ZOOM) {
+      if (!map.hasLayer(labelsLayer)) labelsLayer.addTo(map);
+    } else {
+      if (map.hasLayer(labelsLayer)) map.removeLayer(labelsLayer);
+    }
+  }
+  map.on('zoomend', updateLabelsVisibility);
+  updateLabelsVisibility();
+
+  /* =========================
+     zoom → 矢印サイズ
+  ========================= */
+  function getArrowSizeByZoom(zoom) {
+    if (zoom <= 13) return 12;
+    if (zoom <= 14) return 14;
+    if (zoom <= 15) return 16;
+    if (zoom <= 16) return 18;
+    if (zoom <= 17) return 20;
+    return 24;
+  }
+
+  /* =========================
+     変動率 → SVG + サイズ
+  ========================= */
+  function getArrowIcon(rate) {
+    const size = getArrowSizeByZoom(map.getZoom());
+    let iconUrl = 'icons/arrow_right_green.svg';
+
+    if (rate <= -0.1) {
+      iconUrl = 'icons/arrow_down_strong_blue.svg';
+    } else if (rate < 0.1) {
+      iconUrl = 'icons/arrow_right_green.svg';
+    } else if (rate < 5) {
+      iconUrl = 'icons/arrow_up_lightred.svg';
+    } else if (rate < 10) {
+      iconUrl = 'icons/arrow_up_red.svg';
+    } else {
+      iconUrl = 'icons/arrow_up_strong_darkred.svg';
+    }
+
+    return L.icon({
+      iconUrl,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
+    });
+  }
+
+  /* =========================
+     GeoJSON
+  ========================= */
   fetch('L01-25_34.geojson')
     .then(res => res.json())
     .then(data => {
 
       L.geoJSON(data, {
         pointToLayer: (feature, latlng) => {
-          return L.circleMarker(latlng, {
-            radius: 8,
-            color: '#0078ff',
-            weight: 1,
-            fillOpacity: 0.8
+          const p = feature.properties;
+
+          const addr = p.L01_026;
+          const priceNow = p.L01_104;
+          const pricePrev = p.L01_103;
+
+          let rate = null;
+          let rateText = '-';
+          let rateClass = 'none';
+
+          if (priceNow && pricePrev) {
+            rate = (priceNow - pricePrev) / pricePrev * 100;
+            const r = rate.toFixed(1);
+            if (rate > 0) {
+              rateText = `+${r}%`;
+              rateClass = 'up';
+            } else if (rate < 0) {
+              rateText = `${r}%`;
+              rateClass = 'down';
+            } else {
+              rateText = '0.0%';
+            }
+          }
+
+          /* ▼ rate無し → ● */
+          if (rate === null) {
+            return L.circleMarker(latlng, {
+              radius: 8,
+              color: '#444',
+              weight: 1,
+              fillColor: '#666',
+              fillOpacity: 0.85
+            });
+          }
+
+          /* ▼ rate有り → 矢印 */
+          const arrowMarker = L.marker(latlng, {
+            icon: getArrowIcon(rate)
           });
+
+          arrowMarkers.push({ marker: arrowMarker, rate });
+
+          /* ▼ ラベル */
+          const label = L.marker(latlng, {
+            icon: L.divIcon({
+              className: 'price-label',
+              html: `
+                <div class="addr">${addr ?? '-'}</div>
+                <div class="price">${priceNow.toLocaleString()} 円/㎡</div>
+                <div class="rate ${rateClass}">${rateText}</div>
+              `,
+              iconSize: [120, 44],
+              iconAnchor: [60, 56]
+            })
+          });
+
+          labelsLayer.addLayer(label);
+
+          return arrowMarker;
         },
 
         onEachFeature: (feature, layer) => {
           const p = feature.properties;
+          const priceNow = p.L01_104;
+          const pricePrev = p.L01_103;
 
-          // ---- 年次データ ----
-          const price2025 = p.L01_104; // 最新
-          const price2024 = p.L01_103; // 前年
-
-          const diff = (price2025 && price2024)
-            ? price2025 - price2024
+          const diff = priceNow && pricePrev ? priceNow - pricePrev : null;
+          const diffRate = diff !== null
+            ? ((diff / pricePrev) * 100).toFixed(1)
             : null;
 
-          const diffRate = (price2025 && price2024)
-            ? ((diff / price2024) * 100).toFixed(1)
-            : null;
-
-          // ---- ポップアップ ----
-          const popupHtml = `
+          layer.bindPopup(`
             <table>
               <tr><th>地点名</th><td>${p.L01_024}</td></tr>
               <tr><th>所在地</th><td>${p.L01_025}</td></tr>
-
+              <tr><th>標準地</th><td>${p.L01_026}</td></tr>
+              <tr><th>地価（2025）</th><td><b>${priceNow.toLocaleString()}</b> 円/㎡</td></tr>
               <tr>
-                <th>地価（2025）</th>
-                <td><b>${price2025?.toLocaleString() ?? '-'}</b> 円/㎡</td>
-              </tr>
-
-              <tr><th>用途</th><td>${p.L01_028}</td></tr>
-              <tr><th>用途地域</th><td>${p.L01_051}</td></tr>
-              <tr><th>建ぺい率</th><td>${p.L01_057}%</td></tr>
-              <tr><th>容積率</th><td>${p.L01_058}%</td></tr>
-              <tr><th>最寄駅</th><td>${p.L01_048}</td></tr>
-
-              <tr><th colspan="2">地価推移（前年比）</th></tr>
-              <tr>
-                <th>2024 → 2025</th>
-                <td>
-                  ${diff !== null
-                    ? `${diff > 0 ? '＋' : ''}${diff.toLocaleString()} 円（${diff > 0 ? '＋' : ''}${diffRate}％）`
-                    : '-'}
+                <th>前年比</th>
+                <td>${diff !== null
+                  ? `${diff > 0 ? '＋' : ''}${diff.toLocaleString()} 円（${diff > 0 ? '＋' : ''}${diffRate}%）`
+                  : '-'}
                 </td>
               </tr>
             </table>
-          `;
-
-          layer.bindPopup(popupHtml);
+          `);
         }
       }).addTo(map);
 
-    })
-    .catch(err => {
-      console.error('GeoJSON 読み込み失敗', err);
-      alert('GeoJSONの読み込みに失敗しました');
     });
+
+  /* =========================
+     zoom変更時に矢印を更新
+  ========================= */
+  map.on('zoomend', () => {
+    arrowMarkers.forEach(item => {
+      item.marker.setIcon(getArrowIcon(item.rate));
+    });
+  });
 </script>
 
 </body>
