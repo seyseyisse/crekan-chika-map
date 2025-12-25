@@ -215,7 +215,7 @@ function redraw() {
   });
 }
 
-fetch('./data/L01-25_34.geojson')
+fetch('data/L01-25_34.geojson')
   .then(r => r.json())
   .then(json => {
     geojsonData = json;
