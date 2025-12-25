@@ -215,7 +215,7 @@ function redraw() {
   });
 }
 
-fetch('https://github.com/seyseyisse/crekan-chika-map/releases/tag/v1/L01-25_34.geojson')
+fetch('https://github.com/seyseyisse/crekan-chika-map/releases/download/v1/L01-25_34.geojson')
   .then(r => r.json())
   .then(json => {
     geojsonData = json;
@@ -227,4 +227,5 @@ map.on("moveend zoomend", redraw);
 
 </body>
 </html>
+
 
