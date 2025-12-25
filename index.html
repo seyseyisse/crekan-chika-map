@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>地価公示マップ（軽量版）</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <style>
+    body { margin: 0; }
+    #map { width: 100%; height: 100vh; }
+
+    .osm-gray {
+      filter: grayscale(85%) brightness(0.95) contrast(0.9);
+    }
+
+    #zoom-indicator {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.85);
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+      z-index: 1000;
+    }
+
+    .price-label {
+      font-size: 11px;
+      text-align: center;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .price-label .up { color: #c1121f; }
+    .price-label .down { color: #1f6fc1; }
+    .price-label .none { color: #999; }
+
+    .leaflet-popup-content table {
+      font-size: 12px;
+      border-collapse: collapse;
+    }
+    .leaflet-popup-content th {
+      text-align: left;
+      padding-right: 6px;
+      color: #555;
+      white-space: nowrap;
+    }
+    .leaflet-popup-content td {
+      padding-left: 4px;
+    }
+  </style>
+</head>
+
+<body>
+<div id="map"></div>
+<div id="zoom-indicator"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const map = L.map('map').setView([34.3955, 132.4555], 14);
+
+const baseCarto = L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+  { subdomains: 'abcd', maxZoom: 20 }
+).addTo(map);
+
+const baseLabel = L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+  { subdomains: 'abcd', maxZoom: 20 }
+).addTo(map);
+
+const baseOSM = L.tileLayer(
+  'https://tile.openstreetmap.jp/{z}/{x}/{y}.png',
+  { maxZoom: 19, className: 'osm-gray' }
+);
+
+map.on("zoomend", () => {
+  if (map.getZoom() < 13) map.addLayer(baseOSM);
+  else map.removeLayer(baseOSM);
+});
+
+const simpleLayer = L.layerGroup().addTo(map);
+const detailLayer = L.layerGroup().addTo(map);
+
+const zoomIndicator = document.getElementById("zoom-indicator");
+map.on("zoomend", () => {
+  zoomIndicator.textContent = `Zoom: ${map.getZoom()}`;
+});
+zoomIndicator.textContent = `Zoom: ${map.getZoom()}`;
+
+let geojsonData = null;
+
+/* =============================
+   記号定義
+============================= */
+function getSymbol(rate, isDetail) {
+  // 近い（詳細）：今のまま
+  if (isDetail) {
+    if (rate <= -0.1) return { icon: '↓', color: '#1f6fc1' };
+    if (rate < 0.1)   return { icon: '→', color: '#66bb6a' };
+    if (rate < 5)     return { icon: '↗', color: '#ff8585' };
+    if (rate < 10)    return { icon: '↑', color: '#ff0000' };
+    return { icon: '↑', color: '#9b0000' };
+  }
+
+  // 引き（簡易）：■のまま、あなた指定の色ルールにする
+  if (rate <= -0.1) return { icon: '■', color: '#1f6fc1' };
+  if (rate < 0.1)   return { icon: '■', color: '#66bb6a' };
+  if (rate < 5)     return { icon: '■', color: '#c1121f' };
+  if (rate < 10)    return { icon: '■', color: '#c1121f' };
+  return { icon: '■', color: '#c1121f' };
+}
+
+// ズームに応じて矢印サイズ変更
+function getArrowSize(zoom) {
+  if (zoom >= 17) return 30;
+  if (zoom >= 16) return 25;
+  if (zoom >= 15) return 22;
+  return 14;
+}
+
+function redraw() {
+  if (!geojsonData) return;
+
+  const zoom = map.getZoom();
+  const bounds = map.getBounds();
+
+  simpleLayer.clearLayers();
+  detailLayer.clearLayers();
+
+  geojsonData.features.forEach(f => {
+    const [lng, lat] = f.geometry.coordinates;
+    if (!bounds.contains([lat, lng])) return;
+
+    const p = f.properties;
+    const now = p.L01_104;
+    const prev = p.L01_103;
+    const rate = (now && prev) ? (now - prev) / prev * 100 : null;
+    const diff = (now && prev) ? now - prev : null;
+
+    const isDetail = zoom >= 15;
+    const sym = getSymbol(rate, isDetail);
+
+    // 引き（簡易）
+    if (!isDetail) {
+      L.circleMarker([lat, lng], {
+        radius: 3,
+        color: sym.color,
+        fillColor: sym.color,
+        fillOpacity: 0.8,
+        weight: 0
+      }).addTo(simpleLayer);
+      return;
+    }
+
+    // 近い（詳細）
+    const size = getArrowSize(zoom);
+
+    const marker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: 'symbol',
+        html: `
+          <div style="
+            font-size:${size}px;
+            color:${sym.color};
+            font-weight:bold;
+            line-height:1;
+            text-shadow:
+              -1px -1px 0 #fff,
+               1px -1px 0 #fff,
+              -1px  1px 0 #fff,
+               1px  1px 0 #fff;
+          ">${sym.icon}</div>
+        `,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2]
+      })
+    }).addTo(detailLayer);
+
+    marker.bindPopup(`
+      <table>
+        <tr><th>地点名</th><td>${p.L01_024}</td></tr>
+        <tr><th>所在地</th><td>${p.L01_025}</td></tr>
+        <tr><th>地価（2025）</th><td><b>${now?.toLocaleString() ?? '-'} 円/㎡</b></td></tr>
+        <tr><th>用途</th><td>${p.L01_028}</td></tr>
+        <tr><th>用途地域</th><td>${p.L01_051}</td></tr>
+        <tr><th>建ぺい率</th><td>${p.L01_057}%</td></tr>
+        <tr><th>容積率</th><td>${p.L01_058}%</td></tr>
+        <tr><th>最寄駅</th><td>${p.L01_048}</td></tr>
+        <tr><th colspan="2">地価推移（前年比）</th></tr>
+        <tr>
+          <th>2024 → 2025</th>
+          <td>${diff !== null ? `${diff > 0 ? '＋' : ''}${diff.toLocaleString()} 円（${rate.toFixed(1)}％）` : '-'}</td>
+        </tr>
+      </table>
+    `);
+
+    let cls = 'none';
+    if (rate > 0) cls = 'up';
+    if (rate < 0) cls = 'down';
+
+    L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: 'price-label',
+        html: `
+          <div>${p.L01_026 ?? '-'}</div>
+          <div>${now?.toLocaleString() ?? '-'} 円</div>
+          <div class="${cls}">${rate ? rate.toFixed(1)+'%' : '-'}</div>
+        `,
+        iconSize: [130, 48],
+        iconAnchor: [65, 60]
+      })
+    }).addTo(detailLayer);
+  });
+}
+
+fetch('./data/L01-25_34.geojson')
+  .then(r => r.json())
+  .then(json => {
+    geojsonData = json;
+    redraw();
+  });
+
+map.on("moveend zoomend", redraw);
+</script>
+
+</body>
+</html>
