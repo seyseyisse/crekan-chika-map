@@ -2,12 +2,12 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>広島県 地価公示マップ（埋め込み）</title>
+  <title>パークヒルズMAP（埋め込み）</title>
 
   <style>
     body {
       margin: 0;
-      background: #f5f5f5;
+      background: #ffffff;
       font-family: sans-serif;
     }
 
@@ -20,7 +20,7 @@
     .map-frame {
       width: 100%;
       height: 520px;
-      border: 1px solid #ccc;
+      border: 1px solid #ddd;
       border-radius: 6px;
       overflow: hidden;
       background: #fff;
@@ -30,6 +30,7 @@
       width: 100%;
       height: 100%;
       border: none;
+      display: block;
     }
 
     h2 {
@@ -44,38 +45,17 @@
     }
   </style>
 </head>
+
 <body>
 
   <div class="map-wrapper">
-    <h2>広島県 地価公示マップ</h2>
-    <p>阿賀北４丁目周辺（初期表示）</p>
+    <h2>パークヒルズ周辺MAP</h2>
+    <p>広島市西区高須周辺</p>
 
     <div class="map-frame">
-      <iframe id="mapFrame" src="index.html"></iframe>
+      <iframe src="index.html?v=4"></iframe>
     </div>
   </div>
-
-  <script>
-    const iframe = document.getElementById('mapFrame');
-
-    iframe.onload = () => {
-      const w = iframe.contentWindow;
-
-      // index 側の公開メソッドを確認
-      if (typeof w.setMapView !== 'function') {
-        console.error('setMapView is not defined in index.html');
-        return;
-      }
-
-      // ===== 阿賀北４丁目（Feature の座標） =====
-      const lat = 34.24971389;
-      const lng = 132.5936231;
-      const zoom = 16;
-
-      // ★ index 側のメソッドを呼ぶ
-      w.setMapView(lat, lng, zoom);
-    };
-  </script>
 
 </body>
 </html>
