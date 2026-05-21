@@ -1,35 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>パークヒルズMAP</title>
+
+  <link rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <style>
+    body {
+      margin: 0;
+    }
+
+    #map {
+      width: 100%;
+      height: 100vh;
+      background: #ffffff;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
+/* =========================
+   MAP
+========================= */
+
 const map = L.map('map', {
   zoomControl: true
 });
 
-// 指定範囲
+/* =========================
+   表示範囲
+========================= */
+
 const bounds = [
-  [34.37465, 132.38680], // 左下
-  [34.41831, 132.44448]  // 右上
+  [34.37465, 132.38680], // 南西
+  [34.41831, 132.44448]  // 北東
 ];
 
 map.fitBounds(bounds);
 
-// 白背景・地名なし
-const baseCarto = L.tileLayer(
+/* =========================
+   白背景地図
+========================= */
+
+L.tileLayer(
   'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
   {
     subdomains: 'abcd',
     maxZoom: 20,
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+    attribution:
+      '&copy; OpenStreetMap contributors &copy; CARTO'
   }
 ).addTo(map);
 
-// 地名ラベルは使わないので削除
-// const baseLabel = L.tileLayer(...)
+/* =========================
+   パークヒルズ
+========================= */
 
-// OSM通常タイルも使わない
-// const baseOSM = L.tileLayer(...)
+const parkHills = [34.3955, 132.4156];
 
-// 低ズーム時にOSMへ切り替える処理も削除
-// map.on("zoomend", () => {
-//   if (map.getZoom() < 13) map.addLayer(baseOSM);
-//   else map.removeLayer(baseOSM);
-// });
+L.circleMarker(parkHills, {
+  radius: 10,
+  color: '#1b2a41',
+  fillColor: '#1b2a41',
+  fillOpacity: 1,
+  weight: 0
+}).addTo(map);
+
+L.marker(parkHills, {
+  icon: L.divIcon({
+    className: '',
+    html: `
+      <div style="
+        font-size:14px;
+        font-weight:bold;
+        color:#1b2a41;
+        white-space:nowrap;
+      ">
+        PARK HILLS
+      </div>
+    `,
+    iconSize: [120, 20],
+    iconAnchor: [-10, 10]
+  })
+}).addTo(map);
+
 </script>
+
+</body>
+</html>
